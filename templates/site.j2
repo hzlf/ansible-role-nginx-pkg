@@ -1,0 +1,90 @@
+server
+{
+    server_name  {% if item.server['server_name'] is defined %}{{item.server['server_name']}}{% else %}{{inventory_hostname}}{% endif %};
+{% if item.server['listen'] is defined and item.server['listen'] is not string and item.server['listen'] is iterable %}
+{%   for v in listen %}
+    listen       {{v}};
+{%   endfor %}
+{% elif item.server['listen'] is defined  %}
+    listen       {{item.server['listen']}};
+{% elif item.server['listen'] is not defined and item.server['ssl_certificate'] is defined and item.server['ssl_certificate_key'] is defined %}
+    listen       443;
+{% else %}
+    listen       80;
+{% endif %}
+{% if item.server['ssl_certificate'] is defined and item.server['ssl_certificate_key'] is defined %}
+    ssl                        {% if item.server['ssl'] is defined %}{{item.server['ssl']}}{% else %}on{% endif %};
+    ssl_certificate            {{item.server['ssl_certificate']}};
+    ssl_certificate_key        {{item.server['ssl_certificate_key']}};
+
+    ssl_session_cache          {% if item.server['ssl_session_cache'] is defined %}{{item.server['ssl_session_cache']}}{% else %}builtin:1000  shared:SSL:10m{% endif %};
+    ssl_protocols              {% if item.server['ssl_protocols'] is defined %}{{item.server['ssl_protocols']}}{% else %}TLSv1.1 TLSv1.2{% endif %};
+    ssl_ciphers                {% if item.server['ssl_ciphers'] is defined %}{{item.server['ssl_ciphers']}}{% else %}ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-DSS-AES128-SHA256:DHE-RSA-AES256-SHA256:DHE-DSS-AES256-SHA:DHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:AES:CAMELLIA:DES-CBC3-SHA:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!aECDH:!EDH-DSS-DES-CBC3-SHA:!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA{% endif %};
+    ssl_prefer_server_ciphers  {% if item.server['ssl_prefer_server_ciphers'] is defined %}{{item.server['ssl_prefer_server_ciphers']}}{% else %}on{% endif %};
+{% endif %}
+
+
+
+{% if item.server['pagespeed'] is defined %}
+    pagespeed on;
+    pagespeed FileCachePath /var/ngx_pagespeed_cache;
+    location ~ "\.pagespeed\.([a-z]\.)?[a-z]{2}\.[^.]{10}\.[^.]+" {
+        add_header "" "";
+    }
+    location ~ "^/pagespeed_static/" { }
+    location ~ "^/ngx_pagespeed_beacon$" { }
+
+    pagespeed MaxCombinedJsBytes 737280;
+    pagespeed MaxCombinedCssBytes 737280;
+
+    {% if item.server['pagespeed'] == 'passthrough' %}
+        pagespeed RewriteLevel PassThrough;
+    {% endif %}
+
+    {% if item.server['pagespeed'] == 'core' %}
+        pagespeed RewriteLevel CoreFilters;
+    {% endif %}
+
+    {% if item.server['pagespeed'] == 'bandwidth' %}
+        pagespeed RewriteLevel OptimizeForBandwidth;
+    {% endif %}
+
+    {% if item.server['pagespeed_filters'] is defined and item.server['pagespeed_filters'] is iterable %}
+        pagespeed EnableFilters {% for filter in item.server['pagespeed_filters'] %}{{filter}}{% if not loop.last %},{% endif %}{% endfor %};
+    {% endif %}
+
+{% endif %}
+
+
+{% for k,v in item.server.iteritems() %}
+{%   if nginx_site_template_special_variables[k] is not defined %}
+{%     if v is not string and v is iterable %}
+{%      for lv in v %}
+    {{ k }} {{ lv }};
+{%      endfor %}
+{%     else %}
+    {{ k }} {{ v }};
+{%     endif %}
+{%   endif %}
+{% endfor %}
+
+{% if item.server.locations is defined and item.server.locations is not string and item.server.locations is iterable %}
+{%   for location in item.server.locations %}
+{%     if location.location['match'] is defined %}
+    location {{location.location['match']}}
+    {
+{%       for k,v in location.location.iteritems() if k != 'match' %}
+{%         if v is not string and v is iterable %}
+{%          for lv in v %}
+        {{ k }} {{ lv }};
+{%          endfor %}
+{%         else %}
+        {{ k }} {{ v }};
+{%         endif %}
+{%       endfor %}
+    }
+{%     endif %}
+{%   endfor %}
+{% endif %}
+
+}
